@@ -1,0 +1,6 @@
+{
+  "name": "Women Safety Alert System",
+  "description": "A life-saving emergency response application providing one-click SOS alerts, real-time location sharing, and emergency contact management.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": []
+}

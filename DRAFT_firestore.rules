@@ -1,0 +1,90 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 3. Path Variable Hardening Helper
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Phase 3: Primitive Definitions
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == "sharanabasupatil91088@gmail.com"
+      );
+    }
+
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    // Validation Blueprints
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role']) &&
+             data.keys().size() >= 3 &&
+             data.uid == request.auth.uid &&
+             data.email is string &&
+             data.role in ['user', 'admin'] &&
+             // Prevent self-assigned admin unless already admin or matched email
+             (data.role == 'user' || isAdmin());
+    }
+
+    function isValidContact(data) {
+      return data.keys().hasAll(['name', 'phone']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.phone is string && data.phone.size() >= 5 && data.phone.size() <= 20;
+    }
+
+    function isValidAlert(data) {
+      return data.keys().hasAll(['userId', 'userName', 'timestamp', 'location', 'status', 'message']) &&
+             data.keys().size() == 6 &&
+             data.userId == request.auth.uid &&
+             data.userName is string &&
+             data.timestamp == request.time &&
+             data.location is map &&
+             data.location.lat is number && data.location.lat >= -90 && data.location.lat <= 90 &&
+             data.location.lng is number && data.location.lng >= -180 && data.location.lng <= 180 &&
+             data.status in ['active', 'resolved'] &&
+             data.message is string && data.message.size() <= 500;
+    }
+
+    // 1. Master Gate (Relational Sync)
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidUser(incoming()) &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL']);
+      
+      match /contacts/{contactId} {
+        allow list, get: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidContact(incoming()) && isValidId(contactId);
+        allow update: if isOwner(userId) && isValidContact(incoming()) &&
+                        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone', 'email']);
+        allow delete: if isOwner(userId);
+      }
+    }
+
+    match /alerts/{alertId} {
+      // 8. Secure List Queries
+      allow list: if isSignedIn(); 
+      allow get: if isSignedIn();
+      allow create: if isSignedIn() && isValidAlert(incoming()) && isValidId(alertId);
+      allow update: if isAdmin() &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['status']) &&
+                      existing().status == 'active';
+      allow delete: if isAdmin();
+    }
+  }
+}

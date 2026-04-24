@@ -1,0 +1,62 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "admin"] }
+      },
+      "required": ["uid", "email"]
+    },
+    "Contact": {
+      "title": "Contact",
+      "description": "Emergency contact person",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" }
+      },
+      "required": ["name", "phone"]
+    },
+    "Alert": {
+      "title": "Alert",
+      "description": "Emergency alert triggered by user",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" },
+            "accuracy": { "type": "number" }
+          }
+        },
+        "status": { "type": "string", "enum": ["active", "resolved"] },
+        "message": { "type": "string" }
+      },
+      "required": ["userId", "timestamp", "location", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/users/{userId}/contacts/{contactId}": {
+      "schema": "Contact",
+      "description": "Emergency contacts per user"
+    },
+    "/alerts/{alertId}": {
+      "schema": "Alert",
+      "description": "Global emergency alerts"
+    }
+  }
+}
